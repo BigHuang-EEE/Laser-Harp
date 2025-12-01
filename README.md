@@ -31,8 +31,10 @@ The buzzer/speaker uses PWM on **BCM 17** by default. Adjust the pins in
 Install required libraries on the Pi:
 
 ```
-sudo apt-get install python3-pip python3-pil
-pip install RPi.GPIO adafruit-circuitpython-ssd1306
+python3 -m venv ~/oled-env
+source ~/oled-env/bin/activate
+pip install luma.oled pillow
+python Display.py
 ```
 
 ## Running
