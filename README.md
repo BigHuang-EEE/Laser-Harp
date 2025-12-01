@@ -43,7 +43,8 @@ python laser_harp.py
 2. Run the controller:
 
    ```
-   python3 laser_harp.py
+   source ~/dianchuang-env/bin/activate
+   python laser_harp.py
    ```
 
 3. Break a beam to play its note. When the melody `mi re do re mi mi mi` is
