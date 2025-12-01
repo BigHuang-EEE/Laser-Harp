@@ -56,6 +56,8 @@ class PWMNotePlayer:
         self._queue: "queue.Queue[float]" = queue.Queue()
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._running = threading.Event()
+
+        self.gpio.setup(self.speaker_pin, self.gpio.OUT)
         self._pwm = self.gpio.PWM(self.speaker_pin, 440)
 
     def start(self) -> None:
@@ -64,13 +66,11 @@ class PWMNotePlayer:
 
     def stop(self) -> None:
         self._running.clear()
-        self._queue.put_nowait(0.0)  # wake worker
+        self._queue.put_nowait(0.0)
         self._worker.join(timeout=1.0)
         self._pwm.stop()
 
     def play_note(self, frequency: float) -> None:
-        """Enqueue a frequency to be played."""
-
         self._queue.put(frequency)
 
     def _worker_loop(self) -> None:
@@ -157,8 +157,6 @@ class LaserHarp:
         self._display.show_lines(["Laser Harp Ready", "Break a beam..."])
 
     def loop(self) -> None:
-        """Keep the script alive until interrupted."""
-
         try:
             while True:
                 time.sleep(0.25)
