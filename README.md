@@ -34,7 +34,7 @@ Install required libraries on the Pi:
 python3 -m venv ~/dianchuang-env
 source ~/dianchuang-env/bin/activate
 pip install luma.oled pillow
-python laser-harp.py
+python laser_harp.py
 ```
 
 ## Running
