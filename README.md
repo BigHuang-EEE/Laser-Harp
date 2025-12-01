@@ -31,16 +31,15 @@ The buzzer/speaker uses PWM on **BCM 17** by default. Adjust the pins in
 Install required libraries on the Pi:
 
 ```
-python3 -m venv ~/oled-env
-source ~/oled-env/bin/activate
+python3 -m venv ~/dianchuang-env
+source ~/dianchuang-env/bin/activate
 pip install luma.oled pillow
-python Display.py
+python laser-harp.py
 ```
 
 ## Running
 
-1. Power the lasers, connect receivers to their GPIO pins with pull-up
-   resistors, and connect the buzzer and OLED to the pins above.
+1. Connection.
 2. Run the controller:
 
    ```
