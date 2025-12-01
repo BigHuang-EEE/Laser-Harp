@@ -1,10 +1,4 @@
-"""Laser harp controller for Raspberry Pi.
-
-This script drives five laser emitters and five corresponding receivers.
-Breaking a beam plays the associated solfege note (do, re, mi, fa, so).
-When the sequence "mi re do re mi mi mi" is played, the OLED shows
-"8848" as the key.
-"""
+"""Laser harp controller for Raspberry Pi (polling version, no edge interrupts)."""
 
 from __future__ import annotations
 
@@ -18,10 +12,12 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Sequence
 
 
+# ---------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------
+
 @dataclass(frozen=True)
 class NoteConfig:
-    """Mapping between a note, its GPIO pins, and playback frequency."""
-
     name: str
     frequency: float
     laser_pin: int
@@ -30,8 +26,6 @@ class NoteConfig:
 
 @dataclass
 class LaserHarpConfig:
-    """Top-level configuration for the laser harp."""
-
     notes: List[NoteConfig]
     speaker_pin: int
     target_sequence: Sequence[str] = field(
@@ -45,9 +39,11 @@ class LaserHarpConfig:
     oled_height: int = 64
 
 
-class PWMNotePlayer:
-    """Queue-based PWM tone player to avoid blocking interrupt callbacks."""
+# ---------------------------------------------------------
+# PWM Note Player
+# ---------------------------------------------------------
 
+class PWMNotePlayer:
     def __init__(self, gpio, speaker_pin: int, duty_cycle: float, note_duration: float):
         self.gpio = gpio
         self.speaker_pin = speaker_pin
@@ -57,6 +53,7 @@ class PWMNotePlayer:
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._running = threading.Event()
 
+        # 必须设置为输出
         self.gpio.setup(self.speaker_pin, self.gpio.OUT)
         self._pwm = self.gpio.PWM(self.speaker_pin, 440)
 
@@ -89,11 +86,12 @@ class PWMNotePlayer:
             self._queue.task_done()
 
 
-class OLEDDisplay:
-    """Minimal OLED helper for the SSD1306 display."""
+# ---------------------------------------------------------
+# OLED Display
+# ---------------------------------------------------------
 
+class OLEDDisplay:
     def __init__(self, width: int, height: int):
-        digitalio = load_module("digitalio")
         board = load_module("board")
         adafruit_ssd1306 = load_module("adafruit_ssd1306")
         pil_image = load_module("PIL.Image")
@@ -112,24 +110,29 @@ class OLEDDisplay:
     def show_lines(self, lines: Iterable[str]) -> None:
         self._draw.rectangle((0, 0, self.width, self.height), outline=0, fill=0)
         for index, line in enumerate(lines):
-            y_position = index * 12
-            self._draw.text((0, y_position), line, font=self._font, fill=255)
+            y = index * 12
+            self._draw.text((0, y), line, font=self._font, fill=255)
         self._display.image(self._image)
         self._display.show()
 
 
-class LaserHarp:
-    """Core controller for lasers, receivers, audio, and display."""
+# ---------------------------------------------------------
+# Laser Harp Core (Polling version)
+# ---------------------------------------------------------
 
+class LaserHarp:
     def __init__(self, config: LaserHarpConfig):
         self.config = config
         self.gpio = load_module("RPi.GPIO")
         self.gpio.setmode(self.gpio.BCM)
         self.gpio.setwarnings(False)
 
+        # 音符按接收脚查找
         self._note_by_receiver: Dict[int, NoteConfig] = {
             note.receiver_pin: note for note in self.config.notes
         }
+
+        # 播放器 + OLED
         self._melody_progress: List[str] = []
         self._note_player = PWMNotePlayer(
             self.gpio,
@@ -139,27 +142,41 @@ class LaserHarp:
         )
         self._display: OLEDDisplay | None = None
 
+        # 轮询数据结构
+        self._receiver_pins: List[int] = [n.receiver_pin for n in self.config.notes]
+        self._last_states: Dict[int, int] = {}
+
     def setup(self) -> None:
+        # 激光脚输出，高电平亮
         for note in self.config.notes:
             self.gpio.setup(note.laser_pin, self.gpio.OUT)
             self.gpio.output(note.laser_pin, self.gpio.HIGH)
 
+            # 接收脚输入 + 上拉
             self.gpio.setup(note.receiver_pin, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
-            self.gpio.add_event_detect(
-                note.receiver_pin,
-                self.gpio.BOTH,
-                callback=self._on_beam_changed,
-                bouncetime=self.config.debounce_ms,
-            )
+            self._last_states[note.receiver_pin] = self.gpio.input(note.receiver_pin)
 
         self._note_player.start()
+
         self._display = OLEDDisplay(self.config.oled_width, self.config.oled_height)
         self._display.show_lines(["Laser Harp Ready", "Break a beam..."])
 
     def loop(self) -> None:
         try:
             while True:
-                time.sleep(0.25)
+                for pin in self._receiver_pins:
+                    state = self.gpio.input(pin)
+                    last_state = self._last_states[pin]
+
+                    # 状态变化时触发
+                    if state != last_state:
+                        self._last_states[pin] = state
+
+                        # LOW 表示中断光束
+                        if state == self.gpio.LOW:
+                            self._on_beam_changed(pin)
+
+                time.sleep(0.01)
         finally:
             self.cleanup()
 
@@ -167,12 +184,8 @@ class LaserHarp:
         self._note_player.stop()
         self.gpio.cleanup()
 
-    def _on_beam_changed(self, channel: int) -> None:
-        state = self.gpio.input(channel)
-        if state == self.gpio.HIGH:
-            return
-
-        note = self._note_by_receiver.get(channel)
+    def _on_beam_changed(self, pin: int) -> None:
+        note = self._note_by_receiver.get(pin)
         if not note:
             return
 
@@ -181,20 +194,25 @@ class LaserHarp:
 
     def _update_melody(self, note_name: str) -> None:
         self._melody_progress.append(note_name)
-        target_length = len(self.config.target_sequence)
-        self._melody_progress = self._melody_progress[-target_length:]
+        L = len(self.config.target_sequence)
+        self._melody_progress = self._melody_progress[-L:]
 
         if tuple(self._melody_progress) == tuple(self.config.target_sequence):
             if self._display:
-                self._display.show_lines(["Sequence found!", f"Key: {self.config.melody_key}"])
+                self._display.show_lines([
+                    "Sequence found!",
+                    f"Key: {self.config.melody_key}"
+                ])
 
+
+# ---------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------
 
 def load_module(module_name: str):
-    """Import a module after confirming it exists on the system."""
-
     if importlib.util.find_spec(module_name) is None:
         raise ModuleNotFoundError(
-            f"Module '{module_name}' is required but was not found. Install it on the Raspberry Pi."
+            f"Module '{module_name}' is required but was not found. Install it."
         )
     return importlib.import_module(module_name)
 
@@ -211,8 +229,7 @@ def default_config() -> LaserHarpConfig:
 
 
 def main() -> None:
-    config = default_config()
-    harp = LaserHarp(config)
+    harp = LaserHarp(default_config())
     harp.setup()
     harp.loop()
 
