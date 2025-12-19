@@ -169,7 +169,7 @@ class LaserHarp:
         self._display.show_lines(["Laser Harp Ready", "Break a beam..."])
 
     def loop(self) -> None:
-        # 主循环：轮询接收脚，检测从 HIGH -> LOW 的变化
+        # 主循环：轮询接收脚，检测从 LOW -> HIGH 的变化
         while True:
             for pin in self._receiver_pins:
                 state = self.gpio.input(pin)
@@ -178,9 +178,9 @@ class LaserHarp:
                 if state != last:
                     self._last_states[pin] = state
 
-                    # LOW 视为光束被打断
-                    if state == self.gpio.LOW:
-                        self._on_beam_break(pin)
+                    # HIGH 视为激光照到接收器
+                    if state == self.gpio.HIGH:
+                        self._on_beam_hit(pin)
 
             time.sleep(0.01)
 
@@ -196,7 +196,7 @@ class LaserHarp:
         except Exception:
             pass
 
-    def _on_beam_break(self, pin: int) -> None:
+    def _on_beam_hit(self, pin: int) -> None:
         note = self._note_by_receiver.get(pin)
         if not note:
             return
@@ -233,8 +233,6 @@ def default_config() -> LaserHarpConfig:
         NoteConfig("do", 261.63, laser_pin=5, receiver_pin=12),
         NoteConfig("re", 293.66, laser_pin=6, receiver_pin=16),
         NoteConfig("mi", 329.63, laser_pin=13, receiver_pin=20),
-        NoteConfig("fa", 349.23, laser_pin=19, receiver_pin=21),
-        NoteConfig("so", 392.00, laser_pin=26, receiver_pin=18),
     ]
     return LaserHarpConfig(notes=notes, speaker_pin=17)
 
