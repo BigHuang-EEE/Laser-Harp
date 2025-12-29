@@ -213,6 +213,7 @@ class LaserHarp:
         if debug_index is not None:
             print(debug_index)
 
+        self._note_player.play_note(note.frequency)
         self._update_melody(note.name)
 
     def _update_melody(self, note_name: str) -> None:
