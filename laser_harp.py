@@ -19,13 +19,13 @@ from typing import Dict, Iterable, List, Sequence
 class NoteConfig:
     name: str
     frequency: float
-    laser_pin: int
     receiver_pin: int
 
 
 @dataclass
 class LaserHarpConfig:
     notes: List[NoteConfig]
+    laser_pin: int
     speaker_pin: int
     target_sequence: Sequence[str] = field(
         default_factory=lambda: ("mi", "re", "do", "re", "mi", "mi", "mi")
@@ -156,12 +156,11 @@ class LaserHarp:
         self._last_states: Dict[int, int] = {}
 
     def setup(self) -> None:
-        # 配置激光发射管 & 接收器
-        for note in self.config.notes:
-            # 激光：输出，高电平点亮
-            self.gpio.setup(note.laser_pin, self.gpio.OUT)
-            self.gpio.output(note.laser_pin, self.gpio.HIGH)
+        # 配置激光发射管（统一输出）& 接收器
+        self.gpio.setup(self.config.laser_pin, self.gpio.OUT)
+        self.gpio.output(self.config.laser_pin, self.gpio.HIGH)
 
+        for note in self.config.notes:
             # 接收：输入，上拉
             self.gpio.setup(note.receiver_pin, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
             self._last_states[note.receiver_pin] = self.gpio.input(note.receiver_pin)
@@ -258,11 +257,11 @@ def load_module(module_name: str):
 
 def default_config() -> LaserHarpConfig:
     notes = [
-        NoteConfig("do", 261.63, laser_pin=5, receiver_pin=12),
-        NoteConfig("re", 293.66, laser_pin=6, receiver_pin=16),
-        NoteConfig("mi", 329.63, laser_pin=13, receiver_pin=20),
+        NoteConfig("do", 261.63, receiver_pin=12),
+        NoteConfig("re", 293.66, receiver_pin=16),
+        NoteConfig("mi", 329.63, receiver_pin=20),
     ]
-    return LaserHarpConfig(notes=notes, speaker_pin=17)
+    return LaserHarpConfig(notes=notes, laser_pin=5, speaker_pin=17)
 
 
 def main() -> None:
