@@ -31,8 +31,9 @@ class LaserHarpConfig:
         default_factory=lambda: ("mi", "re", "do", "re", "mi", "mi", "mi")
     )
     melody_key: str = "8848"
-    note_duration: float = 0.35
-    duty_cycle: float = 50.0
+    note_duration: float = 0.5
+    note_gap: float = 0.08
+    duty_cycle: float = 35.0
     debounce_ms: int = 60
     oled_width: int = 128
     oled_height: int = 64
@@ -43,11 +44,19 @@ class LaserHarpConfig:
 # =========================
 
 class PWMNotePlayer:
-    def __init__(self, gpio, speaker_pin: int, duty_cycle: float, note_duration: float):
+    def __init__(
+        self,
+        gpio,
+        speaker_pin: int,
+        duty_cycle: float,
+        note_duration: float,
+        note_gap: float,
+    ):
         self.gpio = gpio
         self.speaker_pin = speaker_pin
         self.duty_cycle = duty_cycle
         self.note_duration = note_duration
+        self.note_gap = note_gap
 
         self._queue: "queue.Queue[float]" = queue.Queue()
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
@@ -86,6 +95,8 @@ class PWMNotePlayer:
                 self._pwm.start(self.duty_cycle)
                 time.sleep(self.note_duration)
                 self._pwm.stop()
+                if self.note_gap > 0:
+                    time.sleep(self.note_gap)
 
             self._queue.task_done()
 
@@ -146,6 +157,7 @@ class LaserHarp:
             speaker_pin=self.config.speaker_pin,
             duty_cycle=self.config.duty_cycle,
             note_duration=self.config.note_duration,
+            note_gap=self.config.note_gap,
         )
         self._display: OLEDDisplay | None = None
         self._melody_thread = threading.Thread(target=self._melody_loop, daemon=True)
@@ -240,7 +252,7 @@ class LaserHarp:
                 if not self._melody_running.is_set():
                     break
                 self._note_player.play_note(frequency)
-                time.sleep(self.config.note_duration)
+                time.sleep(self.config.note_duration + self.config.note_gap)
 
 
 # =========================
