@@ -136,6 +136,9 @@ class LaserHarp:
         self._note_by_receiver: Dict[int, NoteConfig] = {
             n.receiver_pin: n for n in self.config.notes
         }
+        self._debug_index_by_receiver: Dict[int, int] = {
+            n.receiver_pin: idx + 1 for idx, n in enumerate(self.config.notes)
+        }
 
         self._melody_progress: List[str] = []
         self._note_player = PWMNotePlayer(
@@ -200,6 +203,10 @@ class LaserHarp:
         note = self._note_by_receiver.get(pin)
         if not note:
             return
+
+        debug_index = self._debug_index_by_receiver.get(pin)
+        if debug_index is not None:
+            print(debug_index)
 
         self._note_player.play_note(note.frequency)
         self._update_melody(note.name)
