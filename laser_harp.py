@@ -184,7 +184,7 @@ class LaserHarp:
 
         # 初始化 OLED
         self._display = OLEDDisplay(self.config.oled_width, self.config.oled_height)
-        self._display.show_lines(["Laser Harp Ready", "Break a beam..."])
+        self._display.show_lines(["Laser Harp Ready", "Link Start!"])
 
     def loop(self) -> None:
         # 主循环：轮询接收脚，检测从 LOW -> HIGH 的变化
