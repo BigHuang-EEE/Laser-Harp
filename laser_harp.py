@@ -148,6 +148,8 @@ class LaserHarp:
             note_duration=self.config.note_duration,
         )
         self._display: OLEDDisplay | None = None
+        self._melody_thread = threading.Thread(target=self._melody_loop, daemon=True)
+        self._melody_running = threading.Event()
 
         # 轮询需要记住每个接收脚的状态
         self._receiver_pins: List[int] = [n.receiver_pin for n in self.config.notes]
@@ -166,6 +168,8 @@ class LaserHarp:
 
         # 启动声音线程
         self._note_player.start()
+        self._melody_running.set()
+        self._melody_thread.start()
 
         # 初始化 OLED
         self._display = OLEDDisplay(self.config.oled_width, self.config.oled_height)
@@ -190,6 +194,7 @@ class LaserHarp:
     def cleanup(self) -> None:
         # 尽量保证多次调用也不会出问题
         try:
+            self._melody_running.clear()
             self._note_player.stop()
         except Exception:
             pass
@@ -219,8 +224,24 @@ class LaserHarp:
         if tuple(self._melody_progress) == tuple(self.config.target_sequence):
             if self._display:
                 self._display.show_lines(
-                    ["Sequence found!", f"Key: {self.config.melody_key}"]
+                    ["Sequence found!", "Key: 4925,12546"]
                 )
+
+    def _melody_loop(self) -> None:
+        # Mary Had a Little Lamb (E D C D E E E | D D D | E G G | E D C D E E E | E D D E D C)
+        melody = [
+            329.63, 293.66, 261.63, 293.66, 329.63, 329.63, 329.63,
+            293.66, 293.66, 293.66,
+            329.63, 392.00, 392.00,
+            329.63, 293.66, 261.63, 293.66, 329.63, 329.63, 329.63,
+            329.63, 293.66, 293.66, 329.63, 293.66, 261.63,
+        ]
+        while self._melody_running.is_set():
+            for frequency in melody:
+                if not self._melody_running.is_set():
+                    break
+                self._note_player.play_note(frequency)
+                time.sleep(self.config.note_duration)
 
 
 # =========================
