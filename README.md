@@ -2,7 +2,7 @@
 
 A Raspberry Pi Python script that turns three paired laser receivers plus a shared laser
 emitter into an interactive harp. Hitting a receiver with its laser plays the matching **do / re / mi**
-note, and playing the melody `mi re do re mi mi mi` shows the key `8848` on an
+note, and playing the melody `mi re do re mi mi mi` shows the key on an
 SSD1306 OLED display.
 
 ## Hardware
@@ -48,4 +48,4 @@ python laser_harp.py
    ```
 
 3. Break a beam to play its note. When the melody `mi re do re mi mi mi` is
-   completed, the OLED will display `Sequence found!` and `Key: 8848`.
+   completed, the OLED will display `Sequence found!` and the key.
